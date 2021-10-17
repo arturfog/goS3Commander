@@ -1,1 +1,1 @@
-GO111MODULE=off go run main.go
+GO111MODULE=auto go run main.go

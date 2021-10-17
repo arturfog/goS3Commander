@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+
+	"../colors"
 )
 
 type UI struct {
@@ -20,6 +22,10 @@ func (ui *UI) AddMenu(m *Menu) {
 	ui.menu = m
 }
 
+func (ui *UI) AddFilePanel(fp *FilePanel) {
+	ui.filePanel = fp
+}
+
 func (ui *UI) clearScreen() {
 	fmt.Print("\033[H\033[2J")
 }
@@ -32,6 +38,10 @@ func (ui *UI) Redraw() {
 	if ui.filePanel != nil {
 		DrawLeftPanel(ui.filePanel)
 	}
+}
+
+func (ui *UI) GetTerminalSize() (width int, height int) {
+	return 80, 25
 }
 
 // -------------------- MENU START ---------------------- //
@@ -68,6 +78,18 @@ func (m *Menu) CloseMenu() {
 	m.openIdx = -1
 }
 
+func DrawMenu(m *Menu) {
+	for _, element := range m.getItems() {
+		fmt.Printf("\033[%d;%dm %s    ", colors.BgCyan, colors.FgDefault, element)
+	}
+	fmt.Println("\033[0m\r")
+	if m.openIdx >= 0 {
+		if len(m.s) > m.openIdx {
+			DrawSubmenu(&m.s[m.openIdx])
+		}
+	}
+}
+
 // -------------------- MENU END ---------------------- //
 
 // -------------------- SUBMENU START ---------------------- //
@@ -90,12 +112,37 @@ func (s *Submenu) getItems() []string {
 	return s.items
 }
 
+func DrawSubmenu(s *Submenu) {
+	var maxWidth = s.maxWidth + 7
+
+	// left corner
+	fmt.Print("\033[46;39m\u250c")
+	for i := 0; i < maxWidth; i++ {
+		fmt.Print("\u2500")
+	}
+	// right corner
+	fmt.Println("\u2510\r")
+	for _, element := range s.getItems() {
+		fmt.Print(fmt.Sprintf("\u2502  %s", element))
+		for i := 0; i < maxWidth-len(element)-2; i++ {
+			fmt.Print(" ")
+		}
+		fmt.Println("\u2502\r")
+	}
+	// left corner
+	fmt.Print("\u2514")
+	for i := 0; i < maxWidth; i++ {
+		fmt.Print("\u2500")
+	}
+	// right corner
+	fmt.Println("\u2518\r")
+}
+
 // -------------------- SUBMENU END ---------------------- //
 
 type Panel struct {
-	items  []string
-	width  int
-	height int
+	items    []string
+	maxWidth int
 }
 
 func (p *Panel) Add(name string) {
@@ -127,48 +174,25 @@ func (fp *FilePanel) GoTo(location string) {
 
 	for _, f := range files {
 		fp.Add(f.Name())
+		if len(f.Name()) > fp.maxWidth {
+			fp.maxWidth = len(f.Name())
+		}
 	}
 }
 
 // -------------------- FILEPANEL END ---------------------- //
 
-func DrawMenu(m *Menu) {
-	//
-	for _, element := range m.getItems() {
-		fmt.Print(fmt.Sprintf(" %s    ", element))
-	}
-	fmt.Println("")
-	if m.openIdx >= 0 {
-		if len(m.s) > m.openIdx {
-			DrawSubmenu(&m.s[m.openIdx])
-		}
-	}
-}
-
-func DrawSubmenu(s *Submenu) {
-	var maxWidth = s.maxWidth + 7
-	fmt.Print("\u250c")
-	for i := 0; i < maxWidth; i++ {
-		fmt.Print("\u2500")
-	}
-	fmt.Println("\u2510")
-	for _, element := range s.getItems() {
-		fmt.Print(fmt.Sprintf("\u2502  %s", element))
-		fmt.Println("\u2502")
-	}
-	fmt.Print("\u2514")
-	for i := 0; i < maxWidth; i++ {
-		fmt.Print("\u2500")
-	}
-	fmt.Println("\u2518")
-}
-
 func DrawLeftPanel(p *FilePanel) {
-	fmt.Println("\u2502 Name \u2502 Size \u2502 Modify time \u2502")
+	p.maxWidth = p.maxWidth + 20
+	fmt.Println("\033[44;39m\u2502 \033[1;93mName\033[39m \u2502 \033[1;93mSize \033[39m\u2502 \033[1;93mModify time \033[39m\u2502\r")
 	for _, element := range p.getItems() {
-		fmt.Println(fmt.Sprintf("\u2502 %s \u2502", element))
+		fmt.Printf("\033[0;44;39m\u2502 %s", element)
+		for i := 0; i < (p.maxWidth - len(element)); i++ {
+			fmt.Print(" ")
+		}
+		fmt.Println(" \u2502\r")
 	}
-	fmt.Println("")
+	fmt.Println("\033[0m\r")
 }
 
 func DrawRightPanel(p *Panel) {
