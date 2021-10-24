@@ -22,6 +22,8 @@ const (
 	BgBlue    = 44
 	BgMagenta = 45
 	BgCyan    = 46
+	BgWhite   = 47
+	BgGray    = 100
 )
 
 type Colors struct {

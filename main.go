@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 
 	"./ui"
 	"golang.org/x/crypto/ssh/terminal"
@@ -23,18 +25,22 @@ func testMenu(m *ui.Menu) {
 	m.Add("Options")
 	m.Add("Right")
 
-	m.OpenMenu(0)
+	//m.OpenMenu(0)
 }
 
 func main() {
 	var localui ui.UI
 	var mainMenu ui.Menu
 	var leftPanel ui.FilePanel
+	var rightPanel ui.FilePanel
+
 	leftPanel.GoTo("/home/artur")
+	rightPanel.GoTo("/home/artur")
 	testMenu(&mainMenu)
 	localui.Init()
 	localui.AddMenu(&mainMenu)
 	localui.AddFilePanel(&leftPanel)
+	localui.AddS3Panel(&rightPanel)
 
 	state, err := terminal.MakeRaw(0)
 	if err != nil {
@@ -45,20 +51,28 @@ func main() {
 			log.Println("warning, failed to restore terminal:", err)
 		}
 	}()
-	/*
-		var keys []byte
-		in := bufio.NewReader(os.Stdin)
+
+	ch := make(chan []byte, 5)
+	go func(ch chan []byte) {
+
 		for {
-			_, err := in.Read(keys)
-			if err != nil {
-				log.Println("stdin:", err)
-				break
-			}
-			fmt.Printf("read rune %q\r\n", keys)
-			if keys[0] == 'q' {
-				break
-			}
+			var b = make([]byte, 5)
+			os.Stdin.Read(b)
+			ch <- b
 		}
-	*/
+	}(ch)
+
 	localui.Redraw()
+
+	for {
+		stdin, _ := <-ch
+		if string(stdin[0]) == "q" {
+			break
+		}
+		fmt.Println("\rKeys pressed:", stdin)
+
+	}
+
+	//var msgbox ui.MsgBox
+	//msgbox.Draw("test")
 }

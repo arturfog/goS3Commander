@@ -9,13 +9,14 @@ import (
 )
 
 type UI struct {
-	menu      *Menu
-	filePanel *FilePanel
+	menu       *Menu
+	leftPanel  *FilePanel
+	rightPanel *FilePanel
 }
 
 func (ui *UI) Init() {
 	ui.menu = nil
-	ui.filePanel = nil
+	ui.leftPanel = nil
 }
 
 func (ui *UI) AddMenu(m *Menu) {
@@ -23,7 +24,11 @@ func (ui *UI) AddMenu(m *Menu) {
 }
 
 func (ui *UI) AddFilePanel(fp *FilePanel) {
-	ui.filePanel = fp
+	ui.leftPanel = fp
+}
+
+func (ui *UI) AddS3Panel(fp *FilePanel) {
+	ui.rightPanel = fp
 }
 
 func (ui *UI) clearScreen() {
@@ -35,8 +40,12 @@ func (ui *UI) Redraw() {
 	if ui.menu != nil {
 		DrawMenu(ui.menu)
 	}
-	if ui.filePanel != nil {
-		DrawLeftPanel(ui.filePanel)
+	if ui.leftPanel != nil {
+		ui.leftPanel.Draw(0, 2)
+	}
+
+	if ui.rightPanel != nil {
+		ui.rightPanel.Draw(ui.leftPanel.maxWidth+5, 2)
 	}
 }
 
@@ -114,7 +123,7 @@ func (s *Submenu) getItems() []string {
 
 func DrawSubmenu(s *Submenu) {
 	var maxWidth = s.maxWidth + 7
-
+	fmt.Print("\x1b7[2;1H")
 	// left corner
 	fmt.Print("\033[46;39m\u250c")
 	for i := 0; i < maxWidth; i++ {
@@ -136,13 +145,17 @@ func DrawSubmenu(s *Submenu) {
 	}
 	// right corner
 	fmt.Println("\u2518\r")
+	fmt.Println("\x1b8")
 }
 
 // -------------------- SUBMENU END ---------------------- //
 
 type Panel struct {
 	items    []string
+	width    int
 	maxWidth int
+	X        int
+	Y        int
 }
 
 func (p *Panel) Add(name string) {
@@ -180,25 +193,112 @@ func (fp *FilePanel) GoTo(location string) {
 	}
 }
 
-// -------------------- FILEPANEL END ---------------------- //
-
-func DrawLeftPanel(p *FilePanel) {
-	p.maxWidth = p.maxWidth + 20
+func (fp *FilePanel) Draw(X int, Y int) {
+	fp.X = X
+	fp.Y = Y
+	fp.maxWidth = fp.maxWidth + 20
+	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y, fp.X)
+	// left corner
+	fmt.Printf("\033[%d;39m\u250c", colors.BgBlue)
+	for i := 0; i < fp.maxWidth; i++ {
+		fmt.Print("\u2500")
+	}
+	// right corner
+	fmt.Println("\u2510\r")
+	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y+1, fp.X)
 	fmt.Println("\033[44;39m\u2502 \033[1;93mName\033[39m \u2502 \033[1;93mSize \033[39m\u2502 \033[1;93mModify time \033[39m\u2502\r")
-	for _, element := range p.getItems() {
-		fmt.Printf("\033[0;44;39m\u2502 %s", element)
-		for i := 0; i < (p.maxWidth - len(element)); i++ {
-			fmt.Print(" ")
+	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y+2, fp.X)
+	fp.Y += 2
+	for _, element := range fp.getItems() {
+		fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y, fp.X)
+		fp.Y += 1
+		fmt.Printf("\033[0;%d;39m\u2502 %s", colors.BgBlue, element)
+		for i := 0; i < (fp.maxWidth - len(element)); i++ {
+			if i+len(element) == 25 {
+				fmt.Print(" \u2502")
+			} else {
+				fmt.Print(" ")
+			}
 		}
 		fmt.Println(" \u2502\r")
+
 	}
+	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y, fp.X)
+	// left corner
+	fmt.Printf("\u2514")
+	for i := 0; i < fp.maxWidth; i++ {
+		fmt.Print("\u2500")
+	}
+	// right corner
+	fmt.Println("\u2518\r")
+	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y+4, fp.X)
+	// restore cursor position
+	fmt.Println("\x1b8")
 	fmt.Println("\033[0m\r")
 }
 
-func DrawRightPanel(p *Panel) {
-	fmt.Println("\u2502 Name \u2502 Size \u2502 Modify time \u2502")
-	for _, element := range p.getItems() {
-		fmt.Println(fmt.Sprintf("\u2502 %s \u2502", element))
-	}
-	fmt.Println("")
+// -------------------- FILEPANEL END ---------------------- //
+
+type MsgBox struct {
+	X  int
+	Y  int
+	W  int
+	OK string
 }
+
+func (m *MsgBox) Draw(text string) {
+	m.X = 15
+	m.Y = 10
+	m.W = 30
+	m.OK = "[ OK ]"
+
+	fmt.Printf("\x1b7\x1b[%d;%dH", m.Y, m.X)
+	// left corner
+	fmt.Printf("\033[%d;%dm\u250c", colors.FgBlack, colors.BgWhite)
+	for i := 0; i < m.W; i++ {
+		fmt.Print("\u2500")
+	}
+	// right corner
+	fmt.Println("\u2510\r")
+
+	fmt.Printf("\x1b[%d;%dH\u2502", m.Y+1, m.X)
+	for i := 0; i < m.W; i++ {
+		if i == ((m.W - 2 - len(text)) / 2) {
+			fmt.Print(text)
+			i += len(text)
+		}
+		fmt.Print(" ")
+	}
+	fmt.Println("\u2502")
+
+	// left corner
+	fmt.Printf("\x1b[%d;%dH\u2514", m.Y+2, m.X)
+	for i := 0; i < m.W; i++ {
+		fmt.Print("\u2500")
+	}
+	// right corner
+	fmt.Println("\u2518\r")
+
+	// OK button area
+	fmt.Printf("\x1b[%d;%dH", m.Y+3, m.X)
+	for i := 0; i < m.W; i++ {
+		if i == ((m.W - len(m.OK)) / 2) {
+			fmt.Printf("%s", m.OK)
+			i += len(m.OK) - 2
+		}
+		fmt.Print(" ")
+	}
+
+	// left corner
+	fmt.Printf("\x1b[%d;%dH\u2514", m.Y+4, m.X)
+	for i := 0; i < m.W; i++ {
+		fmt.Print("\u2500")
+	}
+	// right corner
+	fmt.Println("\u2518\r")
+
+	// restore cursor position
+	fmt.Println("\x1b8")
+}
+
+// -------------------- MSGBOX END ---------------------- //
