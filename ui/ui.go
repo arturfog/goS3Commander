@@ -37,15 +37,17 @@ func (ui *UI) clearScreen() {
 
 func (ui *UI) Redraw() {
 	ui.clearScreen()
-	if ui.menu != nil {
-		DrawMenu(ui.menu)
-	}
+
 	if ui.leftPanel != nil {
 		ui.leftPanel.Draw(0, 2)
 	}
 
 	if ui.rightPanel != nil {
 		ui.rightPanel.Draw(ui.leftPanel.maxWidth+5, 2)
+	}
+
+	if ui.menu != nil {
+		DrawMenu(ui.menu)
 	}
 }
 
@@ -58,6 +60,7 @@ func (ui *UI) GetTerminalSize() (width int, height int) {
 type Menu struct {
 	items   []string
 	openIdx int
+	isOpen  bool
 	s       []Submenu
 }
 
@@ -73,11 +76,26 @@ func (m *Menu) AddWithSubmenu(name string, s *Submenu) {
 	m.s = append(m.s, *s)
 }
 
+func (m *Menu) GetOpenedIdx() int {
+	return m.openIdx
+}
+
 func (m *Menu) getItems() []string {
 	return m.items
 }
 
+func (m *Menu) Down() {
+	m.s[m.openIdx].Down()
+}
+
+func (m *Menu) Up() {
+	m.s[m.openIdx].Up()
+}
+
 func (m *Menu) OpenMenu(idx int) {
+	if idx == len(m.items) {
+		idx = 0
+	}
 	if idx >= 0 && idx < len(m.items) {
 		m.openIdx = idx
 	}
@@ -88,18 +106,37 @@ func (m *Menu) CloseMenu() {
 }
 
 func DrawMenu(m *Menu) {
-	for _, element := range m.getItems() {
-		fmt.Printf("\033[%d;%dm %s    ", colors.BgCyan, colors.FgDefault, element)
+	fmt.Print("\x1b7\x1b[1;1H")
+	for idx, element := range m.getItems() {
+		if idx == m.openIdx {
+			fmt.Printf("\033[%d;%dm %s    ", colors.BgBlack, colors.FgWhite, element)
+		} else {
+			fmt.Printf("\033[%d;%dm %s    ", colors.BgCyan, colors.FgBlack, element)
+		}
 	}
 	fmt.Println("\033[0m\r")
 	if m.openIdx >= 0 {
-		if len(m.s) > m.openIdx {
-			DrawSubmenu(&m.s[m.openIdx])
+		if len(m.items) >= m.openIdx {
+			if len(m.s[m.openIdx].items) > 0 {
+				DrawSubmenu(&m.s[m.openIdx], 5)
+			}
 		}
 	}
+	fmt.Println("\x1b8")
 }
 
 // -------------------- MENU END ---------------------- //
+
+type BottomMenu struct {
+	actions []func()
+	items   []string
+}
+
+func (bm *BottomMenu) getItems() []string {
+	return bm.items
+}
+
+// -------------------- BOTTOM MENU END ---------------------- //
 
 // -------------------- SUBMENU START ---------------------- //
 
@@ -107,6 +144,7 @@ type Submenu struct {
 	actions  []func()
 	items    []string
 	maxWidth int
+	openIdx  int
 }
 
 func (s *Submenu) Add(name string, action func()) {
@@ -115,15 +153,26 @@ func (s *Submenu) Add(name string, action func()) {
 	}
 	s.items = append(s.items, name)
 	s.actions = append(s.actions, action)
+	s.openIdx = 0
+}
+
+func (s *Submenu) Up() {
+	s.openIdx -= 1
+}
+
+func (s *Submenu) Down() {
+	s.openIdx += 1
 }
 
 func (s *Submenu) getItems() []string {
 	return s.items
 }
 
-func DrawSubmenu(s *Submenu) {
+func DrawSubmenu(s *Submenu, startX int) {
 	var maxWidth = s.maxWidth + 7
-	fmt.Print("\x1b7[2;1H")
+	Y := 2
+	Z := 0
+	fmt.Printf("\x1b7\x1b[%d;%dH", Y, startX)
 	// left corner
 	fmt.Print("\033[46;39m\u250c")
 	for i := 0; i < maxWidth; i++ {
@@ -131,20 +180,37 @@ func DrawSubmenu(s *Submenu) {
 	}
 	// right corner
 	fmt.Println("\u2510\r")
-	for _, element := range s.getItems() {
-		fmt.Print(fmt.Sprintf("\u2502  %s", element))
+	fmt.Printf("\x1b[%d;%dH", Y+1, startX)
+	for idx, element := range s.getItems() {
+		fmt.Printf("\033[%d;%dm", colors.BgCyan, colors.FgWhite)
+		if idx == s.openIdx {
+			fmt.Printf("\u2502\033[%d;%dm %s ", colors.BgBlack, colors.FgWhite, element)
+		} else {
+			fmt.Printf("\u2502\033[%d;%dm %s ", colors.BgCyan, colors.FgWhite, element)
+		}
 		for i := 0; i < maxWidth-len(element)-2; i++ {
 			fmt.Print(" ")
 		}
-		fmt.Println("\u2502\r")
+		fmt.Printf("\033[%d;%dm", colors.BgCyan, colors.FgWhite)
+		fmt.Print("\u2502")
+		fmt.Printf("\033[%d;%dm  \r", colors.BgBlack, colors.FgWhite)
+		fmt.Printf("\x1b[%d;%dH", Y+2+idx, startX)
+		Z = Y + 2 + idx
 	}
+
+	fmt.Printf("\033[%d;%dm", colors.BgCyan, colors.FgWhite)
 	// left corner
 	fmt.Print("\u2514")
 	for i := 0; i < maxWidth; i++ {
 		fmt.Print("\u2500")
 	}
 	// right corner
-	fmt.Println("\u2518\r")
+	fmt.Print("\u2518\033[0m")
+	fmt.Printf("\033[%d;%dm  \r", colors.BgBlack, colors.FgWhite)
+	fmt.Printf("\x1b[%d;%dH", Z+1, startX+2)
+	for i := 0; i < maxWidth+2; i++ {
+		fmt.Print(" ")
+	}
 	fmt.Println("\x1b8")
 }
 
@@ -191,12 +257,13 @@ func (fp *FilePanel) GoTo(location string) {
 			fp.maxWidth = len(f.Name())
 		}
 	}
+
+	fp.maxWidth = fp.maxWidth + 20
 }
 
 func (fp *FilePanel) Draw(X int, Y int) {
 	fp.X = X
 	fp.Y = Y
-	fp.maxWidth = fp.maxWidth + 20
 	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y, fp.X)
 	// left corner
 	fmt.Printf("\033[%d;39m\u250c", colors.BgBlue)
@@ -205,9 +272,11 @@ func (fp *FilePanel) Draw(X int, Y int) {
 	}
 	// right corner
 	fmt.Println("\u2510\r")
-	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y+1, fp.X)
+
+	fmt.Printf("\x1b[%d;%dH", fp.Y+1, fp.X)
 	fmt.Println("\033[44;39m\u2502 \033[1;93mName\033[39m \u2502 \033[1;93mSize \033[39m\u2502 \033[1;93mModify time \033[39m\u2502\r")
-	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y+2, fp.X)
+
+	fmt.Printf("\x1b[%d;%dH", fp.Y+2, fp.X)
 	fp.Y += 2
 	for _, element := range fp.getItems() {
 		fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y, fp.X)
