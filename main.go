@@ -26,8 +26,6 @@ func testMenu(m *ui.Menu) {
 	m.Add("Command")
 	m.Add("Options")
 	m.Add("Right")
-
-	//m.OpenMenu(0)
 }
 
 func main() {
@@ -37,6 +35,7 @@ func main() {
 	var rightPanel ui.FilePanel
 
 	leftPanel.GoTo("/home/artur")
+	leftPanel.SetActive(true)
 	rightPanel.GoTo("/home/artur")
 	testMenu(&mainMenu)
 	localui.Init()
@@ -63,7 +62,9 @@ func main() {
 			ch <- b
 		}
 	}(ch)
+
 	localui.Redraw()
+
 	for {
 		stdin, _ := <-ch
 		if string(stdin[0]) == "q" {
@@ -79,28 +80,72 @@ func main() {
 			mainMenu.CloseMenu()
 			localui.Redraw()
 		}
+		// Tab
+		if stdin[0] == 9 && stdin[1] == 0 {
+			if leftPanel.Active() {
+				rightPanel.SetActive(true)
+				leftPanel.SetActive(false)
+			} else {
+				rightPanel.SetActive(false)
+				leftPanel.SetActive(true)
+			}
+			localui.Redraw()
+		}
+		// Enter
+		if stdin[0] == 13 && stdin[1] == 0 {
+			if mainMenu.IsOpen() {
+
+			} else {
+				if leftPanel.Active() {
+					leftPanel.Action()
+				} else {
+					rightPanel.Action()
+				}
+			}
+			localui.Redraw()
+		}
 		// Right
 		// 27 91 67
 		if stdin[0] == 27 && stdin[1] == 91 && stdin[2] == 67 {
-			mainMenu.OpenMenu(mainMenu.GetOpenedIdx() + 1)
+			if mainMenu.IsOpen() {
+				mainMenu.OpenMenu(mainMenu.GetOpenedIdx() + 1)
+			}
 			localui.Redraw()
 		}
 		// Up
 		// 27 91 65
 		if stdin[0] == 27 && stdin[1] == 91 && stdin[2] == 65 {
-			mainMenu.Up()
+			if mainMenu.IsOpen() {
+				mainMenu.Up()
+			} else {
+				if leftPanel.Active() {
+					leftPanel.Up()
+				} else {
+					rightPanel.Up()
+				}
+			}
 			localui.Redraw()
 		}
 		// Down
 		// 27 91 66
 		if stdin[0] == 27 && stdin[1] == 91 && stdin[2] == 66 {
-			mainMenu.Down()
+			if mainMenu.IsOpen() {
+				mainMenu.Down()
+			} else {
+				if leftPanel.Active() {
+					leftPanel.Down()
+				} else {
+					rightPanel.Down()
+				}
+			}
 			localui.Redraw()
 		}
 		// Left
 		// 27 91 68
 		if stdin[0] == 27 && stdin[1] == 91 && stdin[2] == 68 {
-			mainMenu.OpenMenu(mainMenu.GetOpenedIdx() - 1)
+			if mainMenu.IsOpen() {
+				mainMenu.OpenMenu(mainMenu.GetOpenedIdx() - 1)
+			}
 			localui.Redraw()
 		}
 		//fmt.Println("\rKeys pressed:", stdin)
