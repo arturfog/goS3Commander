@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"./ui"
+	"github.com/arturfog/ui"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -34,9 +34,9 @@ func main() {
 	var leftPanel ui.FilePanel
 	var rightPanel ui.FilePanel
 
-	leftPanel.GoTo("/home/artur")
+	leftPanel.GoTo("/Users/arturfogiel")
 	leftPanel.SetActive(true)
-	rightPanel.GoTo("/home/artur")
+	rightPanel.GoTo("/Users/arturfogiel")
 	testMenu(&mainMenu)
 	localui.Init()
 	localui.AddMenu(&mainMenu)

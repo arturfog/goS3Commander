@@ -1,11 +1,10 @@
 package ui
 
 import (
+	"github.com/arturfog/colors"
 	"fmt"
 	"io/ioutil"
 	"log"
-
-	"../colors"
 )
 
 type UI struct {

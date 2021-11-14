@@ -3,7 +3,7 @@ package ui
 import (
 	"fmt"
 
-	"../colors"
+	"github.com/arturfog/colors"
 )
 
 // -------------------- MENU START ---------------------- //
