@@ -10,6 +10,7 @@ import (
 
 type Menu struct {
 	items   []string
+	startX  []int
 	openIdx int
 	isOpen  bool
 	s       []Submenu
@@ -18,12 +19,24 @@ type Menu struct {
 func (m *Menu) Add(name string) {
 	m.items = append(m.items, name)
 	m.openIdx = -1
+	if len(m.startX) > 0 {
+		var idx = len(m.startX) - 1
+		m.startX = append(m.startX, m.startX[idx]+len(m.items[idx]))
+	} else {
+		m.startX = append(m.startX, 0)
+	}
 	m.s = append(m.s, Submenu{})
 }
 
 func (m *Menu) AddWithSubmenu(name string, s *Submenu) {
 	m.items = append(m.items, name)
 	m.openIdx = -1
+	if len(m.startX) > 0 {
+		var idx = len(m.startX) - 1
+		m.startX = append(m.startX, m.startX[idx]+len(m.items[idx]))
+	} else {
+		m.startX = append(m.startX, 0)
+	}
 	m.s = append(m.s, *s)
 }
 
@@ -75,7 +88,7 @@ func (m *Menu) DrawMenu() {
 	if m.openIdx >= 0 {
 		if len(m.items) >= m.openIdx {
 			if len(m.s[m.openIdx].items) > 0 {
-				DrawSubmenu(&m.s[m.openIdx], 5)
+				DrawSubmenu(&m.s[m.openIdx], m.startX[m.openIdx])
 			}
 		}
 	}

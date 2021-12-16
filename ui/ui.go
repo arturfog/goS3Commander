@@ -1,10 +1,13 @@
 package ui
 
 import (
-	"github.com/arturfog/colors"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"strings"
+
+	"github.com/arturfog/colors"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type UI struct {
@@ -42,7 +45,7 @@ func (ui *UI) Redraw() {
 	}
 
 	if ui.rightPanel != nil {
-		ui.rightPanel.Draw(ui.leftPanel.maxWidth+5, 2)
+		ui.rightPanel.Draw(ui.leftPanel.maxWidth, 2)
 	}
 
 	if ui.menu != nil {
@@ -51,7 +54,8 @@ func (ui *UI) Redraw() {
 }
 
 func (ui *UI) GetTerminalSize() (width int, height int) {
-	return 80, 25
+	w, h, _ := terminal.GetSize(0)
+	return w, h
 }
 
 // -------------------- BOTTOM MENU END ---------------------- //
@@ -68,13 +72,19 @@ func (bm *BottomMenu) getItems() []string {
 // -------------------- BOTTOM MENU END ---------------------- //
 
 type Panel struct {
-	items       []string
+	items  []string
+	size   []int
+	modfiy []int
+
 	width       int
 	maxWidth    int
 	X           int
 	Y           int
 	selectedIdx int
 	active      bool
+
+	terminal_w int
+	terminal_h int
 }
 
 func (p *Panel) Add(name string) {
@@ -109,25 +119,34 @@ func (p *Panel) getItems() []string {
 
 type FilePanel struct {
 	Panel
-	location string
+	location     string
+	location_arr []string
+}
+
+func (fp *FilePanel) GoUp() {
+	loc := strings.Join(fp.location_arr[:len(fp.location_arr)-1], "/")
+	fp.GoTo(loc)
 }
 
 func (fp *FilePanel) GoTo(location string) {
 	fp.location = location
+	fp.location_arr = strings.Split(fp.location, "/")
 	fp.clear()
 	files, err := ioutil.ReadDir(fp.location)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	fp.Add("..")
 	for _, f := range files {
 		fp.Add(f.Name())
-		if len(f.Name()) > fp.maxWidth {
-			fp.maxWidth = len(f.Name())
-		}
 	}
-
-	fp.maxWidth = fp.maxWidth + 20
+	fp.terminal_w, fp.terminal_h, err = terminal.GetSize(0)
+	if err == nil {
+		fp.maxWidth = fp.terminal_w / 2
+	} else {
+		fp.maxWidth = 30
+	}
 }
 
 func (fp *FilePanel) Action() {
@@ -138,6 +157,9 @@ func (fp *FilePanel) Action() {
 func (fp *FilePanel) Draw(X int, Y int) {
 	fp.X = X
 	fp.Y = Y
+	if fp.X > fp.terminal_w {
+		fp.X = fp.terminal_w
+	}
 	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y, fp.X)
 	// left corner
 	fmt.Printf("\033[%d;39m\u250c", colors.BgBlue)
@@ -160,7 +182,7 @@ func (fp *FilePanel) Draw(X int, Y int) {
 		} else {
 			fmt.Printf("\033[0;%d;39m\u2502 %s", colors.BgBlue, element)
 		}
-		for i := 0; i < (fp.maxWidth - len(element)); i++ {
+		for i := 0; i < (fp.maxWidth - len(element) - 4); i++ {
 			if i+len(element) == 25 {
 				fmt.Print(" \u2502")
 			} else {
@@ -178,7 +200,7 @@ func (fp *FilePanel) Draw(X int, Y int) {
 	}
 	// right corner
 	fmt.Println("\u2518\r")
-	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y+4, fp.X)
+	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y, fp.X)
 	// restore cursor position
 	fmt.Println("\x1b8")
 	fmt.Println("\033[0m\r")
