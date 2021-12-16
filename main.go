@@ -33,6 +33,7 @@ func main() {
 	var mainMenu ui.Menu
 	var leftPanel ui.FilePanel
 	var rightPanel ui.FilePanel
+	var bottomMenu ui.BottomMenu
 
 	leftPanel.GoTo("/Users/arturfogiel")
 	leftPanel.SetActive(true)
@@ -42,6 +43,16 @@ func main() {
 	localui.AddMenu(&mainMenu)
 	localui.AddFilePanel(&leftPanel)
 	localui.AddS3Panel(&rightPanel)
+	bottomMenu.Add("Help")
+	bottomMenu.Add("Menu")
+	bottomMenu.Add("View")
+	bottomMenu.Add("Edit")
+	bottomMenu.Add("Copy")
+	bottomMenu.Add("Move")
+	bottomMenu.Add("Mkdir")
+	bottomMenu.Add("Delete")
+	bottomMenu.Add("Quit")
+	localui.AddBottomMenu(&bottomMenu)
 
 	state, err := terminal.MakeRaw(0)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/arturfog/colors"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // -------------------- MENU START ---------------------- //
@@ -14,6 +15,9 @@ type Menu struct {
 	openIdx int
 	isOpen  bool
 	s       []Submenu
+	term_w  int
+	term_h  int
+	err     error
 }
 
 func (m *Menu) Add(name string) {
@@ -21,11 +25,13 @@ func (m *Menu) Add(name string) {
 	m.openIdx = -1
 	if len(m.startX) > 0 {
 		var idx = len(m.startX) - 1
-		m.startX = append(m.startX, m.startX[idx]+len(m.items[idx]))
+		m.startX = append(m.startX, m.startX[idx]+len(m.items[idx])+6)
 	} else {
 		m.startX = append(m.startX, 0)
 	}
 	m.s = append(m.s, Submenu{})
+
+	m.term_w, m.term_h, _ = terminal.GetSize(0)
 }
 
 func (m *Menu) AddWithSubmenu(name string, s *Submenu) {
@@ -33,7 +39,7 @@ func (m *Menu) AddWithSubmenu(name string, s *Submenu) {
 	m.openIdx = -1
 	if len(m.startX) > 0 {
 		var idx = len(m.startX) - 1
-		m.startX = append(m.startX, m.startX[idx]+len(m.items[idx]))
+		m.startX = append(m.startX, m.startX[idx]+len(m.items[idx])+6)
 	} else {
 		m.startX = append(m.startX, 0)
 	}
@@ -84,6 +90,13 @@ func (m *Menu) DrawMenu() {
 			fmt.Printf("\033[%d;%dm %s    ", colors.BgCyan, colors.FgBlack, element)
 		}
 	}
+
+	var idx = len(m.startX) - 1
+	x := m.startX[idx] + len(m.items[idx])
+	for i := 0; i < m.term_w-x-(len(m.items)-4); i++ {
+		fmt.Printf(" ")
+	}
+
 	fmt.Println("\033[0m\r")
 	if m.openIdx >= 0 {
 		if len(m.items) >= m.openIdx {

@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/arturfog/colors"
 	"golang.org/x/crypto/ssh/terminal"
@@ -14,6 +15,7 @@ type UI struct {
 	menu       *Menu
 	leftPanel  *FilePanel
 	rightPanel *FilePanel
+	bottomMenu *BottomMenu
 }
 
 func (ui *UI) Init() {
@@ -23,6 +25,10 @@ func (ui *UI) Init() {
 
 func (ui *UI) AddMenu(m *Menu) {
 	ui.menu = m
+}
+
+func (ui *UI) AddBottomMenu(bm *BottomMenu) {
+	ui.bottomMenu = bm
 }
 
 func (ui *UI) AddFilePanel(fp *FilePanel) {
@@ -51,6 +57,10 @@ func (ui *UI) Redraw() {
 	if ui.menu != nil {
 		ui.menu.DrawMenu()
 	}
+
+	if ui.bottomMenu != nil {
+		ui.bottomMenu.Draw()
+	}
 }
 
 func (ui *UI) GetTerminalSize() (width int, height int) {
@@ -63,6 +73,23 @@ func (ui *UI) GetTerminalSize() (width int, height int) {
 type BottomMenu struct {
 	actions []func()
 	items   []string
+
+	term_w int
+	term_h int
+}
+
+func (bm *BottomMenu) Add(name string) {
+	bm.items = append(bm.items, name)
+
+	bm.term_w, bm.term_h, _ = terminal.GetSize(0)
+}
+
+func (bm *BottomMenu) Draw() {
+	fmt.Printf("\x1b7\x1b[%d;1H", bm.term_h-3)
+	for idx, element := range bm.getItems() {
+		fmt.Printf("\033[%d;%dm %d %s    ", colors.BgCyan, colors.FgBlack, idx+1, element)
+	}
+	fmt.Println("\x1b8")
 }
 
 func (bm *BottomMenu) getItems() []string {
@@ -73,14 +100,16 @@ func (bm *BottomMenu) getItems() []string {
 
 type Panel struct {
 	items  []string
-	size   []int
-	modfiy []int
+	size   []int64
+	modfiy []time.Time
+	dir    []bool
 
 	width       int
 	maxWidth    int
 	X           int
 	Y           int
 	selectedIdx int
+	prevIdx     int
 	active      bool
 
 	terminal_w int
@@ -124,8 +153,15 @@ type FilePanel struct {
 }
 
 func (fp *FilePanel) GoUp() {
-	loc := strings.Join(fp.location_arr[:len(fp.location_arr)-1], "/")
-	fp.GoTo(loc)
+	fp.location = strings.Join(fp.location_arr[0:len(fp.location_arr)-2], "/")
+	fp.GoTo(fp.location)
+	if fp.prevIdx != 0 {
+		fp.selectedIdx = fp.prevIdx
+		fp.prevIdx = 0
+	} else {
+		fp.selectedIdx = 0
+		fp.prevIdx = 0
+	}
 }
 
 func (fp *FilePanel) GoTo(location string) {
@@ -139,7 +175,14 @@ func (fp *FilePanel) GoTo(location string) {
 
 	fp.Add("..")
 	for _, f := range files {
-		fp.Add(f.Name())
+		if f.IsDir() == false {
+			fp.Add(f.Name())
+		} else {
+			fp.Add(f.Name() + "/")
+		}
+		fp.size = append(fp.size, f.Size())
+		fp.modfiy = append(fp.modfiy, f.ModTime())
+		fp.dir = append(fp.dir, f.IsDir())
 	}
 	fp.terminal_w, fp.terminal_h, err = terminal.GetSize(0)
 	if err == nil {
@@ -150,8 +193,13 @@ func (fp *FilePanel) GoTo(location string) {
 }
 
 func (fp *FilePanel) Action() {
-	fp.GoTo(fmt.Sprintf("%s/%s", fp.location, fp.items[fp.selectedIdx]))
-	fp.selectedIdx = 0
+	if fp.items[fp.selectedIdx] == ".." {
+		fp.GoUp()
+	} else {
+		fp.GoTo(fmt.Sprintf("%s/%s", fp.location, fp.items[fp.selectedIdx]))
+		fp.prevIdx = fp.selectedIdx
+		fp.selectedIdx = 0
+	}
 }
 
 func (fp *FilePanel) Draw(X int, Y int) {
@@ -162,7 +210,7 @@ func (fp *FilePanel) Draw(X int, Y int) {
 	}
 	fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y, fp.X)
 	// left corner
-	fmt.Printf("\033[%d;39m\u250c", colors.BgBlue)
+	fmt.Printf("\033[%d;%dm\u250c", colors.BgBlue, colors.FgWhite)
 	for i := 0; i < fp.maxWidth; i++ {
 		fmt.Print("\u2500")
 	}
@@ -170,7 +218,9 @@ func (fp *FilePanel) Draw(X int, Y int) {
 	fmt.Println("\u2510\r")
 
 	fmt.Printf("\x1b[%d;%dH", fp.Y+1, fp.X)
-	fmt.Println("\033[44;39m\u2502 \033[1;93mName\033[39m \u2502 \033[1;93mSize \033[39m\u2502 \033[1;93mModify time \033[39m\u2502\r")
+	fmt.Printf("\033[44;39m\u2502 \033[1;93mName\033[39m \u2502 ")
+	fmt.Printf("\033[1;93mSize \033[39m\u2502 ")
+	fmt.Println("\033[1;93mModify time \033[39m\u2502\r")
 
 	fmt.Printf("\x1b[%d;%dH", fp.Y+2, fp.X)
 	fp.Y += 2
@@ -178,9 +228,9 @@ func (fp *FilePanel) Draw(X int, Y int) {
 		fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y, fp.X)
 		fp.Y += 1
 		if idx == fp.selectedIdx && fp.active {
-			fmt.Printf("\033[0;%d;39m\u2502 %s", colors.BgCyan, element)
+			fmt.Printf("\033[0;%d;%dm\u2502 %s", colors.BgCyan, colors.FgWhite, element)
 		} else {
-			fmt.Printf("\033[0;%d;39m\u2502 %s", colors.BgBlue, element)
+			fmt.Printf("\033[0;%d;%dm\u2502 %s", colors.BgBlue, colors.FgWhite, element)
 		}
 		for i := 0; i < (fp.maxWidth - len(element) - 4); i++ {
 			if i+len(element) == 25 {

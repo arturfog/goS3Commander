@@ -9,6 +9,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
+func readConfig() {
+
+}
+
 func deleteObject(bucket string, key string) {
 	svc := s3.New(session.New())
 	input := &s3.DeleteObjectInput{
