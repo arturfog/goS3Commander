@@ -70,34 +70,6 @@ func (ui *UI) GetTerminalSize() (width int, height int) {
 
 // -------------------- BOTTOM MENU END ---------------------- //
 
-type BottomMenu struct {
-	actions []func()
-	items   []string
-
-	term_w int
-	term_h int
-}
-
-func (bm *BottomMenu) Add(name string) {
-	bm.items = append(bm.items, name)
-
-	bm.term_w, bm.term_h, _ = terminal.GetSize(0)
-}
-
-func (bm *BottomMenu) Draw() {
-	fmt.Printf("\x1b7\x1b[%d;1H", bm.term_h-3)
-	for idx, element := range bm.getItems() {
-		fmt.Printf("\033[%d;%dm %d %s    ", colors.BgCyan, colors.FgBlack, idx+1, element)
-	}
-	fmt.Println("\x1b8")
-}
-
-func (bm *BottomMenu) getItems() []string {
-	return bm.items
-}
-
-// -------------------- BOTTOM MENU END ---------------------- //
-
 type Panel struct {
 	items  []string
 	size   []int64
@@ -122,10 +94,16 @@ func (p *Panel) Add(name string) {
 
 func (p *Panel) clear() {
 	p.items = nil
+	p.size = nil
+	p.dir = nil
+	p.modfiy = nil
 }
 
 func (p *Panel) Down() {
-	p.selectedIdx += 1
+	if p.selectedIdx < len(p.items)-1 {
+		p.selectedIdx += 1
+	}
+
 }
 
 func (p *Panel) SetActive(state bool) {
@@ -137,7 +115,9 @@ func (p *Panel) Active() bool {
 }
 
 func (p *Panel) Up() {
-	p.selectedIdx -= 1
+	if p.selectedIdx > 0 {
+		p.selectedIdx -= 1
+	}
 }
 
 func (p *Panel) getItems() []string {
@@ -228,16 +208,20 @@ func (fp *FilePanel) Draw(X int, Y int) {
 		fmt.Printf("\x1b7\x1b[%d;%dH", fp.Y, fp.X)
 		fp.Y += 1
 		if idx == fp.selectedIdx && fp.active {
-			fmt.Printf("\033[0;%d;%dm\u2502 %s", colors.BgCyan, colors.FgWhite, element)
-		} else {
-			fmt.Printf("\033[0;%d;%dm\u2502 %s", colors.BgBlue, colors.FgWhite, element)
-		}
-		for i := 0; i < (fp.maxWidth - len(element) - 4); i++ {
-			if i+len(element) == 25 {
-				fmt.Print(" \u2502")
+			if idx == 0 {
+				fmt.Printf("\033[0;%d;%dm\u2502 %-28s \u2502", colors.BgCyan, colors.FgWhite, element)
 			} else {
-				fmt.Print(" ")
+				fmt.Printf("\033[0;%d;%dm\u2502 %-20s \u2502 %6d \u2502", colors.BgCyan, colors.FgWhite, element, fp.size[idx-1])
 			}
+		} else {
+			if idx == 0 {
+				fmt.Printf("\033[0;%d;%dm\u2502 %-28s", colors.BgBlue, colors.FgWhite, element)
+			} else {
+				fmt.Printf("\033[0;%d;%dm\u2502 %-20s \u2502 %6d \u2502", colors.BgBlue, colors.FgWhite, element, fp.size[idx-1])
+			}
+		}
+		for i := 0; i < (fp.maxWidth - 33); i++ {
+			fmt.Print(" ")
 		}
 		fmt.Println(" \u2502\r")
 
